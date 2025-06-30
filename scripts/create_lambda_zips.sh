@@ -14,30 +14,50 @@ print_header "Creating Lambda ZIP Files"
 cd "$lambdas_dir" || exit 1
 echo "Working directory: $(pwd)"
 
-# First, download NLTK data if not already present
-if [ ! -d "nltk_data" ]; then
-    print_header "Downloading NLTK Data"
-    if [ -f "download_nltk_data.py" ]; then
-        python download_nltk_data.py
-        if [ $? -ne 0 ]; then
-            error "Failed to download NLTK data"
-            exit 1
-        fi
-        success "NLTK data downloaded"
+# First, create minimal NLTK data if not present
+if [ ! -d "nltk_data_minimal" ]; then
+    print_header "Creating Minimal NLTK Data"
+    if [ -f "${script_dir}/create_minimal_nltk.py" ]; then
+        python "${script_dir}/create_minimal_nltk.py"
     else
-        error "download_nltk_data.py not found!"
-        exit 1
+        # Fallback: create minimal nltk manually
+        echo "Creating minimal NLTK data manually..."
+        mkdir -p nltk_data_minimal/tokenizers/punkt/PY3
+        mkdir -p nltk_data_minimal/corpora/stopwords
+        mkdir -p nltk_data_minimal/corpora/wordnet
+        
+        # Copy only essential files
+        if [ -d "nltk_data" ]; then
+            cp -r nltk_data/tokenizers/punkt/english.pickle nltk_data_minimal/tokenizers/punkt/ 2>/dev/null || true
+            cp -r nltk_data/tokenizers/punkt/PY3/english.pickle nltk_data_minimal/tokenizers/punkt/PY3/ 2>/dev/null || true
+            cp nltk_data/corpora/stopwords/english nltk_data_minimal/corpora/stopwords/ 2>/dev/null || true
+            cp nltk_data/corpora/wordnet/*.* nltk_data_minimal/corpora/wordnet/ 2>/dev/null || true
+        fi
     fi
 fi
+
+# Update Lambda files to use nltk_data_minimal
+echo
+echo "Updating Lambda files to use minimal NLTK path..."
+for lambda_file in preprocessing_lambda.py sentiment_lambda.py; do
+    if [ -f "$lambda_file" ]; then
+        # Backup original
+        cp "$lambda_file" "${lambda_file}.bak"
+        
+        # Update NLTK path
+        sed -i "s|nltk.data.path.append('./nltk_data')|nltk.data.path.append('./nltk_data_minimal')|g" "$lambda_file"
+        echo "✓ Updated $lambda_file"
+    fi
+done
 
 # Simple function to create Lambda ZIPs
 echo
 echo "Creating Lambda ZIP files..."
 
-# Preprocessing Lambda (needs NLTK data)
+# Preprocessing Lambda (needs minimal NLTK data)
 if [ -f "preprocessing_lambda.py" ]; then
     echo -n "Creating preprocessing_lambda.zip... "
-    zip -r -q preprocessing_lambda.zip preprocessing_lambda.py nltk_data/
+    zip -r -q preprocessing_lambda.zip preprocessing_lambda.py nltk_data_minimal/
     if [ $? -eq 0 ]; then
         success "✓"
     else
@@ -56,10 +76,10 @@ if [ -f "profanity_lambda.py" ]; then
     fi
 fi
 
-# Sentiment Lambda (needs NLTK data)
+# Sentiment Lambda (needs minimal NLTK data)
 if [ -f "sentiment_lambda.py" ]; then
     echo -n "Creating sentiment_lambda.zip... "
-    zip -r -q sentiment_lambda.zip sentiment_lambda.py nltk_data/
+    zip -r -q sentiment_lambda.zip sentiment_lambda.py nltk_data_minimal/
     if [ $? -eq 0 ]; then
         success "✓"
     else
