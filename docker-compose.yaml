@@ -1,0 +1,55 @@
+services:
+
+    localstack:
+        image: localstack/localstack:latest
+        container_name: localstack-main
+        hostname: localstack-main
+        restart: unless-stopped
+        security_opt:
+          - no-new-privileges:true
+        ports:
+            - 4566:4566
+            - 4571:4571
+        volumes:
+            - ./scripts:/docker-entrypoint-initaws.d  # Initialisierungsskripte
+            - /var/run/docker.sock:/var/run/docker.sock
+            - localstack_data:/var/lib/localstack
+        environment:
+            - SERVICES=lambda,s3,dynamodb,ssm,logs
+            - LAMBDA_EXECUTOR=docker-reuse
+            - DEBUG=1
+            - DOCKER_HOST=unix:///var/run/docker.sock
+
+
+    app:
+        container_name: app-main
+        hostname: app-main
+        restart: unless-stopped
+        security_opt:
+          - no-new-privileges:true
+        build:
+            context: .
+            dockerfile: ./Dockerfile
+        command: tail -f /dev/null
+        volumes:
+            - ./src:/app/src  
+            - ./data:/app/data
+        environment:  
+            - AWS_ENDPOINT_URL=http://localstack:4566  
+            - AWS_ACCESS_KEY_ID=test
+            - AWS_SECRET_ACCESS_KEY=test
+        networks:
+            - default
+        depends_on:
+            localstack:  
+                condition: service_healthy
+
+
+volumes:
+    app_data:
+        driver: local
+    localstack_data:
+        driver: local
+
+networks:
+    default:
