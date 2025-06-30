@@ -8,6 +8,7 @@ import re
 # Initialize AWS clients
 s3 = boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 ssm = boto3.client('ssm', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
+lambda_client = boto3.client('lambda', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 
 # Initialize profanity checker
 profanity.load_censor_words()
@@ -53,6 +54,34 @@ def check_profanity(text):
             unique_profane_words.append(word)
     
     return contains_profanity, unique_profane_words, len(unique_profane_words)
+
+def invoke_next_lambda(bucket, key):
+    """Invoke the next Lambda in the chain (sentiment_lambda)"""
+    try:
+        print(f"Invoking sentiment_lambda for {key}")
+        
+        payload = {
+            "Records": [{
+                "s3": {
+                    "bucket": {"name": bucket},
+                    "object": {"key": key}
+                }
+            }]
+        }
+        
+        response = lambda_client.invoke(
+            FunctionName='sentiment_lambda',
+            InvocationType='Event',  # Asynchronous
+            Payload=json.dumps(payload)
+        )
+        
+        if response['StatusCode'] in [200, 202]:
+            print("Successfully invoked sentiment_lambda")
+        else:
+            print(f"Failed to invoke sentiment_lambda: {response}")
+            
+    except Exception as e:
+        print(f"Error invoking next lambda: {str(e)}")
 
 def process_single_review(bucket, key):
     """Process a single review file for profanity"""
@@ -133,6 +162,10 @@ def process_single_review(bucket, key):
         print(f"Contains profanity: {contains_profanity}")
         if contains_profanity:
             print(f"Profane words found: {all_profane_words}")
+        
+        # INVOKE NEXT LAMBDA IN CHAIN
+        invoke_next_lambda(bucket, new_key)
+        
         return True
         
     except Exception as e:

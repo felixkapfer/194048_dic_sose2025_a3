@@ -7,6 +7,7 @@ from textblob import TextBlob
 # Initialize AWS clients
 s3 = boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 ssm = boto3.client('ssm', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
+lambda_client = boto3.client('lambda', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 
 def get_parameter(param_name):
     """Get parameter from SSM Parameter Store"""
@@ -49,6 +50,34 @@ def analyze_sentiment(text):
     except Exception as e:
         print(f"Error analyzing sentiment: {str(e)}")
         return 0.0, 0.0, 'neutral'
+
+def invoke_next_lambda(bucket, key):
+    """Invoke the next Lambda in the chain (ddb_lambda)"""
+    try:
+        print(f"Invoking ddb_lambda for {key}")
+        
+        payload = {
+            "Records": [{
+                "s3": {
+                    "bucket": {"name": bucket},
+                    "object": {"key": key}
+                }
+            }]
+        }
+        
+        response = lambda_client.invoke(
+            FunctionName='ddb_lambda',
+            InvocationType='Event',  # Asynchronous
+            Payload=json.dumps(payload)
+        )
+        
+        if response['StatusCode'] in [200, 202]:
+            print("Successfully invoked ddb_lambda")
+        else:
+            print(f"Failed to invoke ddb_lambda: {response}")
+            
+    except Exception as e:
+        print(f"Error invoking next lambda: {str(e)}")
 
 def process_single_review(bucket, key):
     """Process a single review file for sentiment analysis"""
@@ -146,6 +175,10 @@ def process_single_review(bucket, key):
         
         print(f"Successfully analyzed sentiment and saved to: {new_key}")
         print(f"Overall sentiment: {overall_sentiment} (polarity: {overall_polarity:.3f})")
+        
+        # INVOKE NEXT LAMBDA IN CHAIN
+        invoke_next_lambda(bucket, new_key)
+        
         return True, overall_sentiment
         
     except Exception as e:

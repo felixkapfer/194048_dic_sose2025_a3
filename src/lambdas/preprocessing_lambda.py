@@ -1,7 +1,6 @@
 import json
 import boto3
 import os
-import re
 from urllib.parse import unquote_plus
 import nltk
 from nltk.tokenize import word_tokenize
@@ -11,11 +10,31 @@ from nltk.stem import WordNetLemmatizer
 # Initialize AWS clients
 s3 = boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 ssm = boto3.client('ssm', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
+lambda_client = boto3.client('lambda', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 
-# Set NLTK data path (include data in the deployment package)
+# Set NLTK data path (we'll include data in the deployment package)
 nltk.data.path.append('/opt/nltk_data')
 nltk.data.path.append('./nltk_data_minimal')
 nltk.data.path.append('./nltk_data_minimal')
+
+# Download NLTK data if not present
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', download_dir='/tmp/nltk_data')
+    nltk.data.path.append('/tmp/nltk_data')
+
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords', download_dir='/tmp/nltk_data')
+    nltk.data.path.append('/tmp/nltk_data')
+
+try:
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('wordnet', download_dir='/tmp/nltk_data')
+    nltk.data.path.append('/tmp/nltk_data')
 
 # Initialize NLTK components
 try:
@@ -53,6 +72,7 @@ def preprocess_text(text):
     text = text.lower()
     
     # Remove URLs
+    import re
     text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
     
     # Remove email addresses
@@ -89,6 +109,34 @@ def preprocess_text(text):
     
     return ' '.join(processed_tokens)
 
+def invoke_next_lambda(bucket, key):
+    """Invoke the next Lambda in the chain (profanity_lambda)"""
+    try:
+        print(f"Invoking profanity_lambda for {key}")
+        
+        payload = {
+            "Records": [{
+                "s3": {
+                    "bucket": {"name": bucket},
+                    "object": {"key": key}
+                }
+            }]
+        }
+        
+        response = lambda_client.invoke(
+            FunctionName='profanity_lambda',
+            InvocationType='Event',  # Asynchronous
+            Payload=json.dumps(payload)
+        )
+        
+        if response['StatusCode'] in [200, 202]:
+            print("Successfully invoked profanity_lambda")
+        else:
+            print(f"Failed to invoke profanity_lambda: {response}")
+            
+    except Exception as e:
+        print(f"Error invoking next lambda: {str(e)}")
+
 def process_single_review(bucket, key):
     """Process a single review file"""
     try:
@@ -122,6 +170,10 @@ def process_single_review(bucket, key):
         )
         
         print(f"Successfully preprocessed and saved to: {new_key}")
+        
+        # INVOKE NEXT LAMBDA IN CHAIN
+        invoke_next_lambda(bucket, new_key)
+        
         return True
         
     except Exception as e:

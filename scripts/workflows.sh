@@ -117,10 +117,19 @@ deploy_lambdas() {
             --runtime python3.11 \
             --handler "${fn}_lambda.lambda_handler" \
             --role arn:aws:iam::000000000000:role/lambda-role \
-            --zip-file "fileb://${zip_file}" 2>/dev/null; then
+            --zip-file "fileb://${zip_file}" \
+            --environment Variables="{AWS_ENDPOINT_URL=http://localstack:4566}" \
+            --timeout 30 \
+            --memory-size 256 2>/dev/null; then
             success "Lambda ${fn}_lambda deployed."
         else
             warn "Failed to deploy Lambda ${fn}_lambda (might already exist)."
+            # Try to update environment variables for existing function
+            aws $ENDPOINT $REGION lambda update-function-configuration \
+                --function-name "${fn}_lambda" \
+                --environment Variables="{AWS_ENDPOINT_URL=http://localstack:4566}" \
+                --timeout 30 \
+                --memory-size 256 2>/dev/null
         fi
     done
 }
