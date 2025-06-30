@@ -1,5 +1,4 @@
 # Stage 1: Build Environment
-# Here we install all dependencies and prepare necessary data.
 FROM python:3.11-slim-bookworm AS builder
 
 # Create app directory
@@ -19,14 +18,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install AWS CLI via pip (more secure and version controllable)
-RUN pip install awscli-local
+RUN pip install awscli-local awscli
 
 # Download NLTK data
 RUN python -m nltk.downloader punkt stopwords wordnet omw-1.4
 
+# Verify AWS CLI installation
+RUN aws --version
 
 # Stage 2: Final Runtime Environment
-# This stage is minimal and contains only what's needed to run the application.
 FROM python:3.11-slim-bookworm
 WORKDIR /app
 
@@ -39,17 +39,22 @@ COPY --from=builder /root/nltk_data /root/nltk_data
 # Set the environment variable so NLTK can locate the data
 ENV NLTK_DATA=/root/nltk_data
 
-# Copy the application
+# Ensure the PATH includes the location where pip installs binaries
+ENV PATH="/usr/local/bin:$PATH"
+
+# Copy the application files
 COPY src/ ./src
 COPY data/ ./data
 COPY results/ ./results
-COPY main.sh ./
-# COPY instructions.pdf ./
+COPY scripts/ ./scripts
 COPY README.md ./
 COPY LICENSE ./
 
-# Ensure executable permissions
-RUN chmod +x main.sh
+# Ensure executable permissions for all scripts
+RUN chmod +x scripts/*.sh
 
-# Default command
-CMD ["./main.sh", "all"]
+# Verify AWS CLI is available in final image
+RUN aws --version
+
+# Default command - keep container running
+CMD ["tail", "-f", "/dev/null"]
