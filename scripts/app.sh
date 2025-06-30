@@ -8,7 +8,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source utility functions
 source "${script_dir}/utils.sh"
 
-# Check if we're inside the container
+# Check if inside the container
 if [ ! -f "/.dockerenv" ]; then
     error "This script should only be run inside the Docker container!"
     echo "Use './main.sh connect' from the host system to access this menu."

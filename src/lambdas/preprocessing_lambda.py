@@ -12,7 +12,7 @@ from nltk.stem import WordNetLemmatizer
 s3 = boto3.client('s3', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 ssm = boto3.client('ssm', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 
-# Set NLTK data path (we'll include data in the deployment package)
+# Set NLTK data path (include data in the deployment package)
 nltk.data.path.append('/opt/nltk_data')
 nltk.data.path.append('./nltk_data_minimal')
 nltk.data.path.append('./nltk_data_minimal')

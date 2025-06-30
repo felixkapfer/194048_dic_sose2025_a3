@@ -15,7 +15,7 @@ def create_minimal_nltk():
     if os.path.exists(minimal_dir):
         shutil.rmtree(minimal_dir)
     
-    # Essential paths we need
+    # Essential paths needed
     essential_paths = [
         # Punkt tokenizer (needed for word_tokenize)
         "nltk_data/tokenizers/punkt/english.pickle",
@@ -65,4 +65,4 @@ if __name__ == "__main__":
     os.chdir("/app/src/lambdas")
     minimal_dir = create_minimal_nltk()
     print(f"\nCreated minimal NLTK data in: {minimal_dir}")
-    print("\nNow update your Lambda ZIPs to use 'nltk_data_minimal' instead of 'nltk_data'")
+    print("\nNow update Lambda ZIPs to use 'nltk_data_minimal' instead of 'nltk_data'")
