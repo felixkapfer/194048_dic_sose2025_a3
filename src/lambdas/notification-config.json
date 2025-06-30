@@ -1,0 +1,60 @@
+{
+  "LambdaFunctionConfigurations": [
+    {
+      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:preprocessing_lambda",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "raw/"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:profanity_lambda",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "preprocessed/"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:sentiment_lambda",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "profanity/"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "LambdaFunctionArn": "arn:aws:lambda:us-east-1:000000000000:function:ddb_lambda",
+      "Events": ["s3:ObjectCreated:*"],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "sentiment/"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
