@@ -153,21 +153,32 @@ set_s3_notifications() {
         return 1
     fi
     
-    local config_file="notification-config.json"
+    # Try multiple locations for notification-config.json
+    local config_file=""
+    for location in "notification-config.json" "${script_dir}/notification-config.json" "/app/src/lambdas/notification-config.json" "../src/lambdas/notification-config.json"; do
+        if [ -f "$location" ]; then
+            config_file="$location"
+            break
+        fi
+    done
     
-    if [ ! -f "$config_file" ]; then
-        error "Notification configuration file not found: $config_file"
+    if [ -z "$config_file" ]; then
+        error "Notification configuration file not found!"
+        echo "Searched in current directory, scripts/, and src/lambdas/"
         return 1
     fi
     
+    echo "Using notification config: $config_file"
+    
     if aws $ENDPOINT $REGION s3api put-bucket-notification-configuration \
         --bucket reviews-bucket \
-        --notification-configuration "file://$config_file" 2>/dev/null; then
+        --notification-configuration "file://$config_file"; then
         success "S3 notification configuration applied."
     else
         error "Failed to apply S3 notification configuration."
     fi
 }
+
 
 start_pipeline() {
     print_header "Uploading Reviews to S3 (Pipeline Start)"

@@ -14,7 +14,7 @@ ssm = boto3.client('ssm', endpoint_url=os.environ.get('AWS_ENDPOINT_URL'))
 
 # Set NLTK data path (we'll include data in the deployment package)
 nltk.data.path.append('/opt/nltk_data')
-nltk.data.path.append('./nltk_data')
+nltk.data.path.append('./nltk_data_minimal')
 nltk.data.path.append('./nltk_data_minimal')
 
 # Initialize NLTK components
