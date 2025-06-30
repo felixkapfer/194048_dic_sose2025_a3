@@ -172,17 +172,32 @@ set_s3_notifications() {
 start_pipeline() {
     print_header "Uploading Reviews to S3 (Pipeline Start)"
     
-    local upload_script="upload_reviews_to_s3.py"
+    local upload_script="${script_dir}/upload_reviews_to_s3.py"
     
     if [ ! -f "$upload_script" ]; then
         error "Upload script not found: $upload_script"
         return 1
     fi
     
-    if python "$upload_script"; then
-        success "Reviews uploaded."
+    # Make script executable
+    chmod +x "$upload_script"
+    
+    # Check if dataset exists
+    local dataset_path="/app/data/reviews_devset.json"
+    if [ ! -f "$dataset_path" ]; then
+        error "Dataset not found: $dataset_path"
+        echo "Please ensure the reviews dataset is in the data/ directory"
+        return 1
+    fi
+    
+    echo "Starting review upload..."
+    echo "Dataset: $dataset_path"
+    echo
+    
+    if python "$upload_script" "$dataset_path"; then
+        success "Reviews uploaded successfully"
     else
-        error "Failed to upload reviews."
+        error "Failed to upload reviews"
     fi
 }
 

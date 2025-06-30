@@ -29,6 +29,101 @@ else
     exit 1
 fi
 
+# Function to prepare Lambda ZIP files
+prepare_lambda_zips() {
+    print_header "Preparing Lambda ZIP Files"
+    
+    local lambdas_dir="/app/src/lambdas"
+    
+    # Check if lambdas directory exists
+    if [ ! -d "$lambdas_dir" ]; then
+        error "Lambda directory not found: $lambdas_dir"
+        return 1
+    fi
+    
+    cd "$lambdas_dir" || return 1
+    
+    # Check if Python files exist
+    echo "Checking for Lambda Python files..."
+    local missing_files=0
+    for lambda_file in preprocessing_lambda.py profanity_lambda.py sentiment_lambda.py ddb_lambda.py; do
+        if [ ! -f "$lambda_file" ]; then
+            error "Missing: $lambda_file"
+            missing_files=$((missing_files + 1))
+        else
+            success "Found: $lambda_file"
+        fi
+    done
+    
+    if [ $missing_files -gt 0 ]; then
+        error "Missing $missing_files Lambda files. Please ensure all Lambda functions are created."
+        return 1
+    fi
+    
+    # Download NLTK data if needed
+    if [ ! -d "nltk_data" ]; then
+        echo
+        echo "Downloading NLTK data..."
+        if [ -f "download_nltk_data.py" ]; then
+            python download_nltk_data.py
+            if [ $? -eq 0 ]; then
+                success "NLTK data downloaded successfully"
+            else
+                error "Failed to download NLTK data"
+                return 1
+            fi
+        else
+            warn "download_nltk_data.py not found, skipping NLTK data download"
+        fi
+    fi
+    
+    # Check if create_lambda_zips.sh exists and run it
+    if [ -f "${script_dir}/create_lambda_zips.sh" ]; then
+        echo
+        echo "Running ZIP creation script..."
+        bash "${script_dir}/create_lambda_zips.sh"
+    else
+        # Fallback: Create simple ZIPs
+        echo
+        warn "create_lambda_zips.sh not found, creating simple ZIP files..."
+        
+        for lambda_name in preprocessing_lambda profanity_lambda sentiment_lambda ddb_lambda; do
+            if [ -f "${lambda_name}.py" ]; then
+                zip -q "${lambda_name}.zip" "${lambda_name}.py"
+                if [ $? -eq 0 ]; then
+                    success "Created ${lambda_name}.zip"
+                else
+                    error "Failed to create ${lambda_name}.zip"
+                fi
+            fi
+        done
+    fi
+    
+    # Verify all ZIPs exist
+    echo
+    echo "Verifying ZIP files..."
+    local all_zips_exist=true
+    for zip_file in preprocessing_lambda.zip profanity_lambda.zip sentiment_lambda.zip ddb_lambda.zip; do
+        if [ -f "$zip_file" ]; then
+            local size=$(du -h "$zip_file" | cut -f1)
+            success "✅ $zip_file ($size)"
+        else
+            error "❌ $zip_file missing"
+            all_zips_exist=false
+        fi
+    done
+    
+    if [ "$all_zips_exist" = true ]; then
+        echo
+        success "All Lambda ZIP files are ready for deployment!"
+    else
+        echo
+        error "Some ZIP files are missing. Please fix the issues and try again."
+    fi
+    
+    cd - > /dev/null
+}
+
 # Function to run full workflow
 run_full_workflow() {
     print_header "Running Full AWS Workflow"
@@ -38,6 +133,8 @@ run_full_workflow() {
         create_s3_and_dynamodb
         echo
         set_ssm_parameters  
+        echo
+        prepare_lambda_zips
         echo
         deploy_lambdas
         echo
@@ -83,18 +180,19 @@ show_app_menu() {
     echo "  1) Check AWS Connectivity"
     echo "  2) Create S3 & DynamoDB"
     echo "  3) Set SSM Parameters"
-    echo "  4) Deploy Lambda Functions"
-    echo "  5) Set Lambda Permissions"
-    echo "  6) Set S3 Notifications"
+    echo "  4) Prepare Lambda ZIP Files 📦"
+    echo "  5) Deploy Lambda Functions"
+    echo "  6) Set Lambda Permissions"
+    echo "  7) Set S3 Notifications"
     echo
     echo "Pipeline Operations:"
-    echo "  7) Start Pipeline (upload reviews)"
-    echo "  8) Show Results (DynamoDB Scan)"
-    echo "  9) Show Lambda Logs"
+    echo "  8) Start Pipeline (upload reviews)"
+    echo "  9) Show Results (DynamoDB Scan)"
+    echo " 10) Show Lambda Logs"
     echo
     echo "Other:"
-    echo " 10) 🚀 Run FULL Workflow (ALL Steps)"
-    echo " 11) Exit (return to host)"
+    echo " 11) 🚀 Run FULL Workflow (ALL Steps)"
+    echo " 12) Exit (return to host)"
     echo
 }
 
@@ -106,21 +204,22 @@ main() {
     
     while true; do
         show_app_menu
-        read -p "Please choose an option [1-11]: " choice
+        read -p "Please choose an option [1-12]: " choice
         echo
 
         case $choice in
             1) check_aws_connectivity ;;
             2) create_s3_and_dynamodb ;;
-            3) set_ssm_parameters ;;   
-            4) deploy_lambdas ;;       
-            5) set_lambda_permissions ;;
-            6) set_s3_notifications ;;  
-            7) start_pipeline ;;        
-            8) show_results ;;         
-            9) show_logs ;;            
-            10) run_full_workflow ;;
-            11)
+            3) set_ssm_parameters ;;
+            4) prepare_lambda_zips ;;   
+            5) deploy_lambdas ;;       
+            6) set_lambda_permissions ;;
+            7) set_s3_notifications ;;  
+            8) start_pipeline ;;        
+            9) show_results ;;         
+            10) show_logs ;;            
+            11) run_full_workflow ;;
+            12)
                 success "Exiting application container."
                 echo "You are now back on the host system."
                 exit 0

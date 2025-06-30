@@ -30,6 +30,12 @@ RUN aws --version
 FROM python:3.11-slim-bookworm
 WORKDIR /app
 
+# Install runtime tools in final image
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       zip unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy all pip-installed tools (including Python packages and AWS CLI)
 COPY --from=builder /usr/local /usr/local
 
